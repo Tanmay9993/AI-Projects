@@ -3,83 +3,71 @@ import googlemaps
 import openai
 import urllib.parse
 
-
 def get_travel_locations(user_input, openai_api_key):
     context = """You are a travel expert specializing in advising on the best places to visit in various regions. You provide recommendations for 
                  destinations accessible by car or suitable for trekking. 
                  Understand the location where the user is asking about along with the number of
                  destinations. 
                  The output should consist of the number of places that the user is asked in that particular regian/area/city/state/country.
-                 Make sure you retunr the exact number of destinations asked
+                 Make sure you return the exact number of destinations asked
                  The output will be the name of the place, state in which it is present, and the country followed by a comma. 
-                 Each destination will be sepparated by a full stop. 
+                 Each destination will be separated by a full stop. 
                  Make sure that you always follow the exact pattern of output and include the name of the location that is given by the user in the output.
-                 Do not give any other unnecessary information in the output and stick to providiing locations asked by the user.
+                 Do not give any other unnecessary information in the output and stick to providing locations asked by the user.
                  If the user requests a particular destination or multiple then just return those with complete proper format."""
     try:
         openai.api_key = openai_api_key
         conversation = [
-        {"role": "system", "content": context},
-        {"role": "user", "content": user_input}
-    ]
+            {"role": "system", "content": context},
+            {"role": "user", "content": user_input}
+        ]
         response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=conversation,
-        temperature=0.5,
-        max_tokens=250
-    )
+            model="gpt-4",
+            messages=conversation,
+            temperature=0.5,
+            max_tokens=250
+        )
         response_text = response.choices[0].message['content'].strip()
-        places = [line.split('. ')[1].strip() for line in response_text.split('\n') if line.strip()]  # Split by '. ' and strip spaces
-        return places
+        places = [line.strip() for line in response_text.split('.') if line.strip()]  # Adjusted to handle missing '. ' split issue
+        return places, None
     except openai.error.AuthenticationError:
         return None, "OpenAI API Key is invalid or missing."
     except Exception as e:
-        return None, str(e)
+        return None, f"An error occurred: {str(e)}"
+
 
 def create_embed_map(api_key, destinations, mode='driving'):
-    gmaps = googlemaps.Client(key=api_key)
+    
     if not destinations:
-        st.error("Error: No destinations provided")
-        return None
-
-    # Geocode all destinations to get precise coordinates
-    geocoded_destinations = []
-    for destination in destinations:
-        geocode_result = gmaps.geocode(destination)
-        if geocode_result:
-            geocoded_destinations.append(geocode_result[0]['geometry']['location'])
+        return None, "Error: No destinations provided"
+    try:
+        gmaps = googlemaps.Client(key=api_key)
+        geocoded_destinations = []
+        for destination in destinations:
+            geocode_result = gmaps.geocode(destination)
+            if geocode_result:
+                geocoded_destinations.append(geocode_result[0]['geometry']['location'])
+            else:
+                return None, f"Geocode failure: No results returned for {destination}"
+        if len(geocoded_destinations) == 1:
+            center = f"{geocoded_destinations[0]['lat']},{geocoded_destinations[0]['lng']}"
+            embed_url = f"https://www.google.com/maps/embed/v1/view?key={api_key}&center={center}&zoom=15"
         else:
-            st.error(f"Geocode failure: No results returned for {destination}")
-            return None
-
-    # Create the embed URL based on the number of destinations
-    if len(geocoded_destinations) == 1:
-        center = f"{geocoded_destinations[0]['lat']},{geocoded_destinations[0]['lng']}"
-        embed_url = f"https://www.google.com/maps/embed/v1/view?key={api_key}&center={center}&zoom=15"
-    else:
-        origin = urllib.parse.quote_plus(destinations[0])
-        destination = urllib.parse.quote_plus(destinations[-1])
-        waypoints = '|'.join(urllib.parse.quote_plus(dest) for dest in destinations[1:-1])
-        waypoints_param = f"&waypoints={waypoints}" if waypoints else ""
-        embed_url = f"https://www.google.com/maps/embed/v1/directions?key={api_key}&origin={origin}&destination={destination}{waypoints_param}&mode={mode}"
-
-    return embed_url
+            origin = urllib.parse.quote_plus(destinations[0])
+            destination = urllib.parse.quote_plus(destinations[-1])
+            waypoints = '|'.join(urllib.parse.quote_plus(dest) for dest in destinations[1:-1])
+            waypoints_param = f"&waypoints={waypoints}" if waypoints else ""
+            embed_url = f"https://www.google.com/maps/embed/v1/directions?key={api_key}&origin={origin}&destination={destination}{waypoints_param}&mode={mode}"
+        return embed_url, None
+    except Exception as e:
+        return None, str(e)
 
 
 def create_gpt_user_input(places):
     if not places:
         return "Error: No places provided."
-
-    # Join the list of places into a single string with proper formatting
-    if len(places) == 1:
-        places_text = places[0]
-    else:
-        # Create a comma-separated list, with 'and' before the last place
-        places_text = ', '.join(places[:-1]) + ', and ' + places[-1]
-
-    # Create the user input text for the GPT model
-    user_input_text = f"I want information about these places: {places_text}."
-    return user_input_text
+    places_text = ', '.join(places[:-1]) + ', and ' + places[-1] if len(places) > 1 else places[0]
+    return f"I want information about these places: {places_text}."
 
 
 def get_travel_information(user_input, openai_api_key):
@@ -100,37 +88,16 @@ def get_travel_information(user_input, openai_api_key):
                  Make sure you do this for all the places and follow the format accurately.
                  Do not give any other unnecessary information which will not be helful to the tourist."""
 
-    conversation = [
-        {"role": "system", "content": context},
-        {"role": "user", "content": user_input}
-    ]
-
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=conversation,
-            temperature=0.5,  # A slight temperature increase for more varied responses
-            max_tokens=3000
-        )
-
-        # Extract the text from the response and format it into a list of places
+        openai.api_key = openai_api_key
+        conversation = [{"role": "system", "content": context}, {"role": "user", "content": user_input}]
+        response = openai.ChatCompletion.create(model="gpt-4", messages=conversation, temperature=0.5, max_tokens=3000)
         response_text = response.choices[0].message['content'].strip()
-        return response_text
-        
-
+        return response_text, None
     except Exception as e:
-        print(f"An error occurred: {e}")
-        return None
+        return None, f"An error occurred: {str(e)}"
     
 
-
-def validate_api_keys(gmaps_api_key, gpt_api_key):
-    errors = []
-    if not gmaps_api_key:
-        errors.append("Google Maps API Key is invalid.")
-    if not gpt_api_key:
-        errors.append("OpenAI API Key is invalid.")
-    return errors
 
 def validate_api_keys(gmaps_api_key, gpt_api_key):
     errors = []
@@ -153,17 +120,16 @@ def main():
         input[type="text"], input[type="password"], textarea {
             height: 34px;
             font-size: 18px;
-            width: 300px; /* Adjust as necessary for your layout */
+            width: 300px;
         }
         .stSidebar > div:first-child {
-            width: 100%; /* Attempts to set sidebar width to full, may not work as expected */
+            width: 100%;
         }
         </style>
         <div style="color: red; font-size: 22px; font-weight: bold;">API Keys</div>
         """, unsafe_allow_html=True)
         gmaps_api_key = st.text_input("Google Maps API Key", type="password", key="gmaps_key")
         gpt_api_key = st.text_input("OpenAI API Key", type="password", key="gpt_key")
-
         st.markdown("<div style='color: red; font-size: 22px; font-weight: bold;'>What do you plan to see?</div>", unsafe_allow_html=True)
         user_input = st.text_area("Ask me about some place...", "", height=80, key="1")
         travel_mode = st.radio("Select your preferred mode of travel:", ('Driving', 'Walking'), index=0)
@@ -171,17 +137,24 @@ def main():
         if st.button('Get Recommendations'):
             errors = validate_api_keys(gmaps_api_key, gpt_api_key)
             if not errors:
-                try:
-                    places = get_travel_locations(user_input, gpt_api_key)
-                    if places:
-                        st.session_state.places = places
-                        st.session_state.places_output = "\n".join(f"{i+1}. {place.split(',')[0]}" for i, place in enumerate(places))
-                        st.session_state.map_url = create_embed_map(gmaps_api_key, places, mode=travel_mode.lower())
-                        user_input_text = create_gpt_user_input(places)
-                        st.session_state.travel_info = get_travel_information(user_input_text, gpt_api_key)
-                        st.session_state.page = 'map'
-                except Exception as e:
-                    st.error(f"Error processing the request: {str(e)}")
+                places, place_error = get_travel_locations(user_input, gpt_api_key)
+                if place_error:
+                    st.error(place_error)
+                elif places:
+                    st.session_state.places = places
+                    st.session_state.places_output = "\n".join(f"{i+1}. {place.split(',')[0]}" for i, place in enumerate(places))
+                    map_url, map_error = create_embed_map(gmaps_api_key, places, mode=travel_mode.lower())
+                    if map_error:
+                        st.error(map_error)
+                    else:
+                        st.session_state.map_url = map_url
+                    user_input_text = create_gpt_user_input(places)
+                    travel_info, travel_info_error = get_travel_information(user_input_text, gpt_api_key)
+                    if travel_info_error:
+                        st.error(travel_info_error)
+                    else:
+                        st.session_state.travel_info = travel_info
+                    st.session_state.page = 'map'
             else:
                 st.error("Please check your API keys:\n" + "\n".join(errors))
 
