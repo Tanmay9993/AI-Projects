@@ -1,6 +1,6 @@
 import streamlit as st
 import googlemaps
-import openai
+from openai import OpenAI
 import urllib.parse
 
 def get_travel_locations(user_input, openai_api_key):
