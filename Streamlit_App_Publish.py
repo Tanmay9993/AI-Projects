@@ -132,13 +132,6 @@ def validate_api_keys(gmaps_api_key, gpt_api_key):
         errors.append("OpenAI API Key is invalid.")
     return errors
 
-def validate_api_keys(gmaps_api_key, gpt_api_key):
-    errors = []
-    if not gmaps_api_key:
-        errors.append("Google Maps API Key is invalid.")
-    if not gpt_api_key:
-        errors.append("OpenAI API Key is invalid.")
-    return errors
 
 
 def main():
@@ -188,7 +181,7 @@ def main():
         st.write("Welcome to the Travel Assistant. Use the sidebar to start!")
     elif st.session_state.page == 'map':
         if st.session_state.map_url:
-            st.markdown(f'<iframe src="{st.session_state.map_url}" width="90%" height="600" frameborder="0" style="border:0" allowfullscreen></iframe>', unsafe_allow_html=True)
+            st.markdown(f'<iframe src="{st.session_state.map_url}" width="80%" height="550" frameborder="0" style="border:0" allowfullscreen></iframe>', unsafe_allow_html=True)
         if st.button('Get Detailed Information'):
             st.session_state.page = 'details'
     elif st.session_state.page == 'details':
