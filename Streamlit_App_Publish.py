@@ -144,20 +144,20 @@ def validate_api_keys(gmaps_api_key, gpt_api_key):
 def main():
     st.set_page_config(page_title="Travel Assistant", layout="wide")
     st.title("Travel Assistant")
-    # Note: Streamlit currently does not support dynamically changing the sidebar width via API or straightforward CSS.
     if 'page' not in st.session_state:
         st.session_state.page = 'home'
 
     with st.sidebar:
         st.markdown("""
         <style>
-        input[type="text"], input[type="password"] {
+        input[type="text"], input[type="password"], textarea {
             height: 34px;
             font-size: 18px;
-            width: 100%;    
+            width: 300px; /* Adjust as necessary for your layout */
         }
-        /* You may attempt to adjust the sidebar width using this CSS, but it might not work as expected. */
-        .css-1d391kg {width: 350px;}
+        .stSidebar > div:first-child {
+            width: 100%; /* Attempts to set sidebar width to full, may not work as expected */
+        }
         </style>
         <div style="color: red; font-size: 22px; font-weight: bold;">API Keys</div>
         """, unsafe_allow_html=True)
@@ -171,17 +171,18 @@ def main():
         if st.button('Get Recommendations'):
             errors = validate_api_keys(gmaps_api_key, gpt_api_key)
             if not errors:
-                # If no errors, proceed with API operations
-                places = get_travel_locations(user_input, gpt_api_key)
-                if places:
-                    st.session_state.places = places
-                    st.session_state.places_output = "\n".join(f"{i+1}. {place.split(',')[0]}" for i, place in enumerate(places))
-                    st.session_state.map_url = create_embed_map(gmaps_api_key, places, mode=travel_mode.lower())
-                    user_input_text = create_gpt_user_input(places)
-                    st.session_state.travel_info = get_travel_information(user_input_text, gpt_api_key)
-                    st.session_state.page = 'map'
+                try:
+                    places = get_travel_locations(user_input, gpt_api_key)
+                    if places:
+                        st.session_state.places = places
+                        st.session_state.places_output = "\n".join(f"{i+1}. {place.split(',')[0]}" for i, place in enumerate(places))
+                        st.session_state.map_url = create_embed_map(gmaps_api_key, places, mode=travel_mode.lower())
+                        user_input_text = create_gpt_user_input(places)
+                        st.session_state.travel_info = get_travel_information(user_input_text, gpt_api_key)
+                        st.session_state.page = 'map'
+                except Exception as e:
+                    st.error(f"Error processing the request: {str(e)}")
             else:
-                # Display errors on the main screen
                 st.error("Please check your API keys:\n" + "\n".join(errors))
 
     if st.session_state.page == 'home':
