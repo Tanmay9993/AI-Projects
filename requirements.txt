@@ -1,3 +1,0 @@
-streamlit==1.35.0
-googlemaps==4.10.0
-openai==0.28.0
